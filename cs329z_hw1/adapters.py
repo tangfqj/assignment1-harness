@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional
 
+from cs329z_hw1.agent.tools import assemble_tools
 from cs329z_hw1.types import (
     AgentConfig,
     DocWindow,
@@ -350,9 +351,8 @@ def run_agent_session(
       the deny rules.
     """
     from cs329z_hw1.agent.session import AgentSession
-    if tools is None:
-        raise NotImplementedError
-    return AgentSession(lm, tools, config)
+    from cs329z_hw1.agent.tools import assemble_tools
+    return AgentSession(lm, assemble_tools(lm, tools, config), config)
 
 
 def run_build_doc_index(docs: list[dict]) -> Any:
