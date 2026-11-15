@@ -15,19 +15,25 @@ using the tools below when you need information you do not already have.
 
 Work step by step: call a tool when it would help, read its result, and continue. \
 When you have enough information, reply with your final answer in plain text, with no tool call. \
-Base your answer on what the tools returned, and say so if you could not find something."""
+Base your answer on what the tools returned, and say so if you could not find something.
+
+You do have working tools. If you need information, write the tool call in the same reply, and do not \
+announce that you will look something up without doing it. Never say that you cannot access something \
+until you have actually tried the tools. If a result does not contain the answer, try another search \
+or read more before you conclude that you cannot find it."""
 
 MALFORMED_LIMIT = 3
 MALFORMED_STOP = ("unknown_tool", "invalid_args")
 
 _ANNOUNCE = re.compile(
-    r"\b(i'?ll|i will|let me|i'?m going to|i am going to|allow me to)\b"
-    r".{0,60}\b(search|look|check|find|read|pull|fetch|run|query|retrieve|open|get|see)\b",
-    re.I | re.S,
+	r"\b(i'll|i will|let me|i'm going to|i am going to|allow me to|i need to|i should)\b"
+	r".{0,80}\b(search|look|check|find|read|pull|fetch|run|query|retrieve|open|get|see|consult|review|verify)\b",
+	re.I | re.S,
 )
+MAX_NUDGES = 2
 NUDGE = (
-    "You said you would take an action but did not write a tool call. "
-    "Either write the tool call now, or give your final answer in plain text."
+	"You said you would take an action but did not write a tool call. Your tools are available. "
+	"Write the tool call now, in this reply, or give your final answer in plain text."
 )
 
 class AgentSession:
@@ -101,9 +107,10 @@ class AgentSession:
 			malformed = 0 if parsed.tool_call is None else malformed
 
 			# No call
+			nudges = 0
 			if parsed.tool_call is None:
-				if not nudged and self._announces_action(parsed.text):
-					nudged = True
+				if nudges < MAX_NUDGES and self._announces_action(parsed.text):
+					nudges += 1
 					self._log("nudge", content=NUDGE)
 					self.messages.append({"role": "user", "content": NUDGE})
 					continue
@@ -126,8 +133,8 @@ class AgentSession:
 
 	@staticmethod
 	def _announces_action(text: str) -> bool:
-		text = (text or "").strip()
-		return 0 < len(text) <= 300 and bool(_ANNOUNCE.search(text))
+		text = (text or "").strip().replace("\u2019", "'").replace("\u2018", "'")   # curly apostrophes
+		return 0 < len(text) <= 400 and bool(_ANNOUNCE.search(text))
 
 	def _format_result(self, name: str, result) -> str:
 		return f"Tool result form {name} (status: {result.status}): \n{result.content}"

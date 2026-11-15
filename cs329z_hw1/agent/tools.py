@@ -5,6 +5,7 @@ import threading
 from cs329z_hw1 import adapters, data
 from cs329z_hw1.cardinal import CARDINAL_TOOLS, cardinal_spec
 from cs329z_hw1.types import AgentConfig, ToolSpec
+from cs329z_hw1.agent import docs as docs_mod
 
 MAX_K = 20
 SNIPPET = 160
@@ -64,14 +65,21 @@ def build_cardinal_tools(lm, config: AgentConfig) -> list[ToolSpec]:
 		_ARCHIVE.load()
 		return adapters.run_daily_digest(data.emails_on(date), aux)
 
+	def search_docs(query: str, k: int = 5) -> str:
+		results = docs_mod.search_docs(docs_mod.get_index(), query, min(k, docs_mod.MAX_TOOL_K))
+		return docs_mod.format_search(results)
+
+	def read_doc(doc_id: str, start_line: int = 1) -> str:
+		window = docs_mod.read_doc(docs_mod.get_index(), doc_id, start_line)
+		return docs_mod.format_window(window)
+
 	def not_ready(what: str):
 		return lambda **kw: f"{what} is not available yet."
 
 	fns = {
 		"search_emails": search_emails, "read_email": read_email,
 		"email_qa": email_qa, "daily_digest": daily_digest,
-		"search_docs": not_ready("search_docs"),
-		"read_doc": not_ready("read_doc"),
+		"search_docs": search_docs, "read_doc": read_doc,
 		"run_terminal": not_ready("run_terminal"),
 		"remember": not_ready("remember"),
 		"recall": not_ready("recall"),
@@ -133,8 +141,23 @@ DESCRIPTIONS = {
 		"It does NOT answer questions about a specific topic; use search_emails or email_qa for that. "
 		"The date must be written YYYY-MM-DD."
 	),
-	"search_docs": "Not implemented yet.",
-	"read_doc": "Not implemented yet.",
+	"search_docs": (
+		"Keyword search over Cardinal Energy's internal documents: policies (expenses, PTO, parental "
+		"leave, remote work, IT security), the employee handbook, benefits, org chart, product and "
+		"engineering docs, and company announcements. Returns up to k documents, each with its id, "
+		"title, the line where the match is, and a short snippet. A snippet is evidence. If it does not"
+		"contain the exact figure, date, or name you need, call read_doc with that doc_id and the line shown, " 
+		"orr search again with different words. The search matches exact words, so use a few distinctive "
+		"terms. Policies are sometimes changed by a later announcement or memo (the document id "
+		"contains its date), so after you find a policy, search again for newer announcements on the "
+		"same topic. Use this for company questions, and search_emails for the 2001 email archive."
+	),
+	"read_doc": (
+		"Reads part of one company document, starting at start_line. Returns the lines that fit in a window, "
+		"tells you which lines you got and how many the document has, and how to continue. "
+		"Use it after search_docs, with the doc_id from a result and the line shown there. "
+		"To read the next part, call it again with the start_line it gives you. Read only what you need."
+	),
 	"run_terminal": "Not implemented yet.",
 	"remember": "Not implemented yet.",
 	"recall": "Not implemented yet.",
