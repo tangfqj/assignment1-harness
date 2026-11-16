@@ -17,20 +17,20 @@ Work step by step: call a tool when it would help, read its result, and continue
 When you have enough information, reply with your final answer in plain text, with no tool call. \
 Base your answer on what the tools returned, and say so if you could not find something.
 
-You do have working tools. If you need information, write the tool call in the same reply, and do not \
-announce that you will look something up without doing it. Never say that you cannot access something \
-until you have actually tried the tools. If a result does not contain the answer, try another search \
-or read more before you conclude that you cannot find it."""
+For any question about Cardinal Energy, its people, products, policies, or documents, or about the email \
+archive, you must look the answer up with your tools before you answer. Never say that you do not have \
+enough information, and do not ask the user to clarify, before you have searched: most questions can be \
+answered by searching with the key words of the question. If a search finds nothing, try different words \
+before you give up."""
 
 MALFORMED_LIMIT = 3
 MALFORMED_STOP = ("unknown_tool", "invalid_args")
 
-_ANNOUNCE = re.compile(
-	r"\b(i'll|i will|let me|i'm going to|i am going to|allow me to|i need to|i should)\b"
-	r".{0,80}\b(search|look|check|find|read|pull|fetch|run|query|retrieve|open|get|see|consult|review|verify)\b",
-	re.I | re.S,
+_INTENTION = re.compile(
+	r"\b(i'll|i will|let me|i'm going to|i am going to|i'm gonna|allow me to|i need to|i should|i can start|first,? i)\b",
+	re.I,
 )
-MAX_NUDGES = 2
+MAX_NUDGES = 3
 NUDGE = (
 	"You said you would take an action but did not write a tool call. Your tools are available. "
 	"Write the tool call now, in this reply, or give your final answer in plain text."
@@ -102,6 +102,20 @@ class AgentSession:
 							"Please rephrase your request or try again.")
 				continue
 
+			if parsed.tool_call is None and not parsed.text.strip():
+				message = ("Your reply was empty. Write the tool call you need now, "
+						   "or give your final answer in plain text.")
+				self._log("assistant", content=reply)
+				self._log("error", content=message)
+				self.messages.append({"role": "user", "content": message})
+				malformed += 1
+				if malformed >= MALFORMED_LIMIT:
+					return self._finish(
+						"malformed",
+						"I could not produce a valid tool call after several tries, so I stopped. "
+						"Please rephrase your request or try again.")
+				continue
+			
 			self._log("assistant", content=reply)
 			self.messages.append({"role": "assistant", "content": reply})
 			malformed = 0 if parsed.tool_call is None else malformed
@@ -134,7 +148,7 @@ class AgentSession:
 	@staticmethod
 	def _announces_action(text: str) -> bool:
 		text = (text or "").strip().replace("\u2019", "'").replace("\u2018", "'")   # curly apostrophes
-		return 0 < len(text) <= 400 and bool(_ANNOUNCE.search(text))
+		return 0 < len(text) <= 400 and bool(_INTENTION.search(text))
 
 	def _format_result(self, name: str, result) -> str:
 		return f"Tool result form {name} (status: {result.status}): \n{result.content}"

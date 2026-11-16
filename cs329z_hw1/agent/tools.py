@@ -6,6 +6,7 @@ from cs329z_hw1 import adapters, data
 from cs329z_hw1.cardinal import CARDINAL_TOOLS, cardinal_spec
 from cs329z_hw1.types import AgentConfig, ToolSpec
 from cs329z_hw1.agent import docs as docs_mod
+from cs329z_hw1.agent.terminal import make_run_terminal
 
 MAX_K = 20
 SNIPPET = 160
@@ -80,7 +81,7 @@ def build_cardinal_tools(lm, config: AgentConfig) -> list[ToolSpec]:
 		"search_emails": search_emails, "read_email": read_email,
 		"email_qa": email_qa, "daily_digest": daily_digest,
 		"search_docs": search_docs, "read_doc": read_doc,
-		"run_terminal": not_ready("run_terminal"),
+		"run_terminal": make_run_terminal(config),
 		"remember": not_ready("remember"),
 		"recall": not_ready("recall"),
 		"ask_user": _ask_user_fn(config),
@@ -158,7 +159,16 @@ DESCRIPTIONS = {
 		"Use it after search_docs, with the doc_id from a result and the line shown there. "
 		"To read the next part, call it again with the start_line it gives you. Read only what you need."
 	),
-	"run_terminal": "Not implemented yet.",
+	"run_terminal": (
+		"Runs ONE shell command in a sandboxed workspace and returns its exit code, stdout and stderr. "
+		"The workspace holds emails.jsonl (the whole email archive, one JSON object per line with the "
+		"keys id, thread_id, reply_to, from, to, date, subject, body; dates are UTC) and docs/ (the company "
+		"documents as .md files). Use it to count, filter, or aggregate over the data, which the search "
+		"tools cannot do. Allowed programs include python3, grep, awk, sed, sort, uniq, wc, cut, tr, "
+		"head, tail, find, ls and cat. Some listed programs may not be installed on this machine (a missing one "
+		"reports 'command not found'); do not rely on jq, use python3 for JSON. Example: "
+		"python3 -c \"import json; rows=[json.loads(l) for l in open('emails.jsonl')]; print(len(rows))\". "
+	),
 	"remember": "Not implemented yet.",
 	"recall": "Not implemented yet.",
 	"ask_user": "Not implemented yet."
