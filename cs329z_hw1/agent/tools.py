@@ -7,6 +7,7 @@ from cs329z_hw1.cardinal import CARDINAL_TOOLS, cardinal_spec
 from cs329z_hw1.types import AgentConfig, ToolSpec
 from cs329z_hw1.agent import docs as docs_mod
 from cs329z_hw1.agent.terminal import make_run_terminal
+from cs329z_hw1.agent.memory import make_memory_fns
 
 MAX_K = 20
 SNIPPET = 160
@@ -74,16 +75,14 @@ def build_cardinal_tools(lm, config: AgentConfig) -> list[ToolSpec]:
 		window = docs_mod.read_doc(docs_mod.get_index(), doc_id, start_line)
 		return docs_mod.format_window(window)
 
-	def not_ready(what: str):
-		return lambda **kw: f"{what} is not available yet."
+	remember, recall = make_memory_fns(config.memory_dir)
 
 	fns = {
 		"search_emails": search_emails, "read_email": read_email,
 		"email_qa": email_qa, "daily_digest": daily_digest,
 		"search_docs": search_docs, "read_doc": read_doc,
 		"run_terminal": make_run_terminal(config),
-		"remember": not_ready("remember"),
-		"recall": not_ready("recall"),
+		"remember": remember, "recall": recall,
 		"ask_user": _ask_user_fn(config),
 	}
 	return [cardinal_spec(name, DESCRIPTIONS[name], fns[name]) for name in CARDINAL_TOOLS]
@@ -169,7 +168,23 @@ DESCRIPTIONS = {
 		"reports 'command not found'); do not rely on jq, use python3 for JSON. Example: "
 		"python3 -c \"import json; rows=[json.loads(l) for l in open('emails.jsonl')]; print(len(rows))\". "
 	),
-	"remember": "Not implemented yet.",
-	"recall": "Not implemented yet.",
+	"remember": (
+		"Saves one fact to your long-term memory. It persists across sessions and is shown to you at the "
+		"start of later sessions. Use it when the user tells you something durable about themselves or "
+		"how they want things done: their team or role, identifiers such as a cost center, preferences, "
+		"what they mean by a term, or a correction. Write one short sentence that makes sense on its own "
+		"and names the user, for example: The user is on the firmware team; by \"the spec\" they mean the "
+		"firmware spec. Do not store the contents of documents or emails, lookup results, or details that "
+		"matter only for the current request. "
+		"Argument: fact (the sentence to store)."
+	),
+	"recall": (
+		"Searches your long-term memory for facts saved in earlier sessions or earlier in this one. "
+		"It matches words, so use a few key words such as 'cost center' or 'team'. The memory shown at the "
+		"start of the session can leave out older facts, so use recall when a request may depend on "
+		"something about the user that you do not see there. If nothing matches, it returns the most "
+		"recent facts instead. "
+		"Argument: query (key words to search for)."
+	),
 	"ask_user": "Not implemented yet."
 }

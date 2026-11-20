@@ -9,6 +9,7 @@ from attr import dataclass
 from cs329z_hw1.agent.protocol import run_parse_response, run_render_tools
 from cs329z_hw1.agent.registry import ToolRegistry
 from cs329z_hw1.agent.terminal import _head_tail
+from cs329z_hw1.agent.memory import MEMORY_RULES, MemoryStore
 from cs329z_hw1.llm import OutputTruncated, BudgetExceeded
 from cs329z_hw1.tokens import count_message_tokens, count_tokens
 from cs329z_hw1.types import AgentConfig, AgentResult, ToolSpec
@@ -80,6 +81,11 @@ class AgentSession:
 		self.mode = config.mode
 
 		self.system_prompt = BASE_SYSTEM_PROMPT + "\n\n" + run_render_tools(self.registry.schemas())
+		if config.memory_dir is not None:
+			self.system_prompt += "\n\n" + MEMORY_RULES
+			block = MemoryStore(config.memory_dir).prompt_block(config.context_budget)
+			if block:
+				self.system_prompt += "\n\n" + block
 		self.transcript: list[dict] = [] 	# append-only
 
 		# what the model sees is built from:
