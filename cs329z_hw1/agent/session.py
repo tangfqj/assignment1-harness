@@ -12,7 +12,7 @@ from cs329z_hw1.agent.terminal import _head_tail
 from cs329z_hw1.agent.memory import MEMORY_RULES, MemoryStore
 from cs329z_hw1.llm import OutputTruncated, BudgetExceeded
 from cs329z_hw1.tokens import count_message_tokens, count_tokens
-from cs329z_hw1.types import AgentConfig, AgentResult, ToolSpec
+from cs329z_hw1.types import AgentConfig, AgentResult, ToolSpec, ToolCall, ToolResult
 
 BASE_SYSTEM_PROMPT = """\
 You are the Cardinal Energy assistant. You help employees by answering their questions, \
@@ -57,6 +57,23 @@ SUMMARY_SYSTEM = (
 	"Plain text only, no preamble, at most {words} words."
 )
 
+ASK_RULES = (
+	"If a request is ambiguous in a way that searching cannot settle (for example, two documents or policies "
+	"could both be meant), call ask_user with one specific question instead of guessing. Search first for "
+	"anything you can look up."
+)
+
+def _denied_text(reason: str) -> str:
+	reason = " ".join((reason or "").split()) or "The user gave no reason."
+	if reason[-1] not in ".!?":
+		reason += "."
+	return (
+		"The user denied this call, so it was NOT run and nothing was changed. "
+		f"Reason: {reason} "
+		"Do not run it again or try to working around. Continue with the rest of "
+		"the request, and say in your answer what you could not do."
+	)
+
 @dataclass
 class Entry:
 	"""One message of the conversation"""
@@ -86,6 +103,9 @@ class AgentSession:
 			block = MemoryStore(config.memory_dir).prompt_block(config.context_budget)
 			if block:
 				self.system_prompt += "\n\n" + block
+		if config.user is not None:
+			self.system_prompt += "\n\n" + ASK_RULES
+
 		self.transcript: list[dict] = [] 	# append-only
 
 		# what the model sees is built from:
@@ -118,6 +138,12 @@ class AgentSession:
 				return self._finish(
 						"token_budget",
 						"I used up my budget for this request before I could finish. Ask me to continue, or narrow down the question.")
+
+			if self.config.user is not None:
+				steer = self.config.user.pending_message()
+				if steer:
+					self._log("user", content=steer)
+					self.entries.append(Entry("user", steer, "user"))
 
 			# Ask the model
 			sent = self._prepare_context()	# where compaction happens
@@ -169,7 +195,6 @@ class AgentSession:
 			malformed = 0 if parsed.tool_call is None else malformed
 
 			# No call
-			nudges = 0
 			if parsed.tool_call is None:
 				if nudges < MAX_NUDGES and self._announces_action(parsed.text):
 					nudges += 1
@@ -182,7 +207,7 @@ class AgentSession:
 			name, args = parsed.tool_call.name, parsed.tool_call.args
 			self._log("tool_call", name=name, args=args)
 
-			result = self.registry.execute(name, args)
+			result = self._run_call(parsed.tool_call)
 			shown = self._cap_result(result.content)
 			self._log("tool_result", name=name, status=result.status, content=shown)
 			self.entries.append(Entry("user", self._format_result(name, result.status, shown),
@@ -194,6 +219,18 @@ class AgentSession:
 						"malformed",
 						"I could not produce a valid tool call after several tries, so I stopped. "
 						"Please rephrase your request or try again.")
+
+	def _run_call(self, call: ToolCall) -> ToolResult:
+		bad = self.registry.validate(call.name, call.args)
+		if bad is not None:
+			return bad
+		if self.mode == "confirm" and not self.registry.is_read_only(call.name):
+			if self.config.user is None:
+				return ToolResult("denied", _denied_text("No user is available to approve it."))
+			decision = self.config.user.approve(call)
+			if not decision.approved:
+				return ToolResult("denied", _denied_text(decision.reason))
+		return self.registry.execute(call.name, call.args)
 
 
 	def _view(self) -> list[dict]:

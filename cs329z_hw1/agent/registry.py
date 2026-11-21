@@ -20,6 +20,9 @@ class ToolRegistry:
 			for n in self._order 
 		]
 
+	def is_read_only(self, name: str) -> bool:
+		return self._tools[name].read_only
+	
 	def validate(self, name: str, args: dict) -> ToolResult:
 		try:
 			tool = self._tools.get(name)

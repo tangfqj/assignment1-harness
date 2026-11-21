@@ -186,5 +186,13 @@ DESCRIPTIONS = {
 		"recent facts instead. "
 		"Argument: query (key words to search for)."
 	),
-	"ask_user": "Not implemented yet."
+	"ask_user": (
+		"Asks the user a question and waits for the answer. Use it when the request is ambiguous in a way "
+		"that searching cannot settle and a wrong guess would waste the user's time: for example, two "
+		"documents or policies could both be meant, or a required detail such as a date or a name is missing. "
+		"Do not use it for things you can look up with your other tools. Ask one specific question at a time, "
+		"and give the options if you know them, for example: Do you mean the expense policy from March or the "
+		"one it replaced? "
+		"Argument: question (the question to ask, one or two sentences)."
+	)
 }
